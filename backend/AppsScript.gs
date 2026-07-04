@@ -17,6 +17,7 @@
  */
 
 const SHEET_NAME = "Waitlist";
+const SPREADSHEET_ID = "1IKz0y2CDnO-vL3Zv8ilTzJ2Df7__h8VqenSFSBlryGk";
 
 function doPost(e) {
   const sheet = getOrCreateSheet();
@@ -43,7 +44,7 @@ function doPost(e) {
 }
 
 function getOrCreateSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
