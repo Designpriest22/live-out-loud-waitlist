@@ -169,9 +169,7 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABN8AAAR+CAYAAADg
 /* set the real ticket on-sale moment here (ISO string, WAT / UTC+1) */
 const TICKET_LIVE_AT = "2026-09-04T10:00:00+01:00";
 const TICKETS_URL = "#"; // swap for the real checkout link once it's live
-const COUNTER_BASE = 0; // waitlist starts at zero — counts up live from here
 const STORAGE_JOINED_KEY = "lol_waitlist_joined";
-const STORAGE_COUNT_KEY = "lol_waitlist_count_fallback";
 // Google Apps Script Web App URL — deploy backend/AppsScript.gs and paste the
 // "/exec" URL here to make the waitlist form write real signups to a Google Sheet.
 const WAITLIST_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbylwY2X4xOOh9yQcm6ArNn-ecko6cBTg6Z19xjvDshxsUfjnOi4LHQMIDN0xM00iW0Gaw/exec";
@@ -347,37 +345,38 @@ function Marquee({ items, bg, color }) {
 }
 
 /* ============================ WAITLIST COUNTER ============================ */
-/* Starts at zero. Ticks up a touch over real elapsed time once the page has
-   been live a while (purely cosmetic momentum), plus a local increment when
-   *this* visitor joins. Swap in a real backend (Supabase, a serverless
-   function, your ESP's API, etc.) when one is wired up — increment() is the
-   only place that needs to change. */
+/* Reads the real signup count from the Google Sheet via the Apps Script
+   backend, using a JSONP <script> tag (Apps Script web app responses aren't
+   readable cross-origin through fetch/XHR, since they carry no CORS headers —
+   a <script> tag isn't subject to that restriction). Polls every 30s, plus an
+   optimistic +1 the moment *this* visitor joins so the UI feels instant. */
 function useWaitlistCount() {
-  const launchTime = useMemo(() => Date.now(), []);
+  const [count, setCount] = useState(null);
 
-  const computeDrift = () => {
-    const hoursElapsed = Math.max(0, (Date.now() - launchTime) / (1000 * 60 * 60));
-    return Math.floor(hoursElapsed * 4);
+  const fetchCount = () => {
+    const callbackName = "__waitlistCount" + Date.now() + Math.floor(Math.random() * 1e6);
+    window[callbackName] = (data) => {
+      if (data && typeof data.count === "number") setCount(data.count);
+      cleanup();
+    };
+    const script = document.createElement("script");
+    const cleanup = () => {
+      delete window[callbackName];
+      script.remove();
+    };
+    script.src = WAITLIST_SCRIPT_URL + "?callback=" + callbackName + "&t=" + Date.now();
+    script.onerror = cleanup;
+    document.body.appendChild(script);
   };
-
-  const readJoinBump = () => {
-    const stored = parseInt(safeStorage.get(STORAGE_COUNT_KEY) || "", 10);
-    return Number.isFinite(stored) ? stored : 0;
-  };
-
-  const [count, setCount] = useState(() => COUNTER_BASE + computeDrift() + readJoinBump());
 
   useEffect(() => {
-    const i = setInterval(() => {
-      setCount(COUNTER_BASE + computeDrift() + readJoinBump());
-    }, 30000);
+    fetchCount();
+    const i = setInterval(fetchCount, 30000);
     return () => clearInterval(i);
   }, []);
 
   const increment = () => {
-    const bump = readJoinBump() + 1;
-    safeStorage.set(STORAGE_COUNT_KEY, String(bump));
-    setCount(COUNTER_BASE + computeDrift() + bump);
+    setCount((c) => (typeof c === "number" ? c + 1 : c));
   };
 
   return { count, increment };

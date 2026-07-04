@@ -43,6 +43,22 @@ function doPost(e) {
   return jsonResponse({ ok: true });
 }
 
+function doGet(e) {
+  const sheet = getOrCreateSheet();
+  const count = Math.max(0, sheet.getLastRow() - 1); // minus header row
+  const payload = { count: count };
+  const callback = e.parameter && e.parameter.callback;
+
+  // The page reads this via a <script> tag (JSONP), not fetch/XHR, since
+  // Apps Script web app responses carry no CORS headers and can't be read
+  // cross-origin any other way.
+  if (callback) {
+    return ContentService.createTextOutput(callback + "(" + JSON.stringify(payload) + ");")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return jsonResponse(payload);
+}
+
 function getOrCreateSheet() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(SHEET_NAME);
