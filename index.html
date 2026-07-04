@@ -403,7 +403,9 @@ function AnimatedNumber({ value }) {
     requestAnimationFrame(step);
   }, [value]);
   if (value == null) return <span>···</span>;
-  return <span className="num-tag">{display.toLocaleString()}</span>;
+  // display can still be null for one render tick right after value first
+  // resolves from null to a number (the effect that syncs it hasn't run yet).
+  return <span className="num-tag">{(display ?? value).toLocaleString()}</span>;
 }
 
 function WaitlistCounter({ count }) {
